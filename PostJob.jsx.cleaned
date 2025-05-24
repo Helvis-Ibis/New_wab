@@ -1,0 +1,3597 @@
+// src/pages/recruiter-dashboard/PostJob.jsx
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
+import {
+	Eye,
+	Edit2,
+	Trash2,
+	Plus,
+	X,
+	Users,
+	Phone,
+	MapPin,
+	Building,
+	Briefcase,
+	Upload,
+	Search,
+	Mail,
+	Calendar,
+	DollarSign,
+	Languages,
+	FileText,
+	Clock,
+	Award,
+	BookOpen,
+	Paperclip,
+	Globe,
+	User,
+	FileCheck,
+	File,
+	Loader,
+	Image,
+	ArrowRight,
+	ArrowRightCircle,
+	MoreHorizontal,
+	Download,
+	AlertCircle,
+	CheckCircle,
+	GraduationCap,
+	ClipboardCheck,
+	Code,
+	AlertTriangle,
+} from "lucide-react";
+import { API_BASE_URL, API_URLS, DOMAINES_PREDEFINIES, PAYS_PREDEFINIES, TYPE_ENTREPRISE_PREDEFINIES, LANGUES_PREDEFINIES, NIVEAU_PREDEFINIES, NIVEAU_EXPERIENCE_PREDEFINIES, JOURS_MONTANT } from "../../config/urls";
+import { useAuth } from "../../components/context/AuthContext";
+import axios from "axios";
+import Swal from 'sweetalert2';
+
+// Composant Modal pour créer une nouvelle entreprise
+const CreateCompanyModal = ({ isOpen, onClose }) => {
+	const { session } = useAuth();
+	const [formData, setFormData] = useState({
+		nom: "",
+		type: "",
+		domaine: "",
+		rccm: "",
+		email: "",
+		contact: "",
+		siege: "",
+		pays: "",
+		description: "",
+		logo: null,
+		logoPreview: null,
+		documents: {
+			businessRegister: null,
+			recruiterID: null,
+		}
+	});
+	
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+	const [success, setSuccess] = useState('');
+
+	// Fermer la modale avec le bouton retour sur mobile
+	useEffect(() => {
+		const handleBackButton = (e) => {
+			if (isOpen) {
+				e.preventDefault();
+				onClose();
+			}
+		};
+
+		window.addEventListener("popstate", handleBackButton);
+
+		return () => {
+			window.removeEventListener("popstate", handleBackButton);
+		};
+	}, [isOpen, onClose]);
+
+	// Empêcher le scroll du body quand la modale est ouverte
+	useEffect(() => {
+		if (isOpen) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "auto";
+		}
+
+		return () => {
+			document.body.style.overflow = "auto";
+		};
+	}, [isOpen]);
+
+	const handleChange = (e) => {
+		const { name, value } = e.target;
+		setFormData((prev) => ({
+			...prev,
+			[name]: value,
+		}));
+	};
+
+	const handleLogoChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			setFormData(prev => ({
+				...prev,
+				logo: file,
+				logoPreview: URL.createObjectURL(file)
+			}));
+		}
+	};
+	
+	const handleFileChange = (e, documentType) => {
+		if (e.target.files && e.target.files[0]) {
+			setFormData((prev) => ({
+				...prev,
+				documents: {
+					...prev.documents,
+					[documentType]: e.target.files[0],
+				},
+			}));
+		}
+	};
+	
+	const validateForm = () => {
+		if (!formData.nom.trim()) return "Le nom de l'entreprise est requis";
+		if (!formData.email.trim()) return "L'email est requis";
+		if (!formData.contact.trim()) return "Le numéro de téléphone est requis";
+		
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(formData.email)) return "Format d'email invalide";
+		
+		if (!formData.documents.businessRegister) return "Le registre de commerce est requis";
+	//	if (!formData.documents.recruiterID) return "La pièce d'identité du recruteur est requise";
+		
+		return null;
+	};
+
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		
+		// Reset messages
+		setError('');
+		setSuccess('');
+		
+		// Validate form
+		const validationError = validateForm();
+		if (validationError) {
+			setError(validationError);
+			return;
+		}
+		
+		setLoading(true);
+		
+		try {
+			// Create FormData object to handle file upload
+			const formDataToSend = new FormData();
+			formDataToSend.append('nom', formData.nom);
+			formDataToSend.append('type', formData.type);
+			formDataToSend.append('domaine', formData.domaine);
+			formDataToSend.append('pays', formData.pays);
+			formDataToSend.append('rccm', formData.rccm);
+			formDataToSend.append('email', formData.email);
+			formDataToSend.append('tel', formData.contact);
+			formDataToSend.append('place', formData.siege);
+			formDataToSend.append('description', formData.description);
+			formDataToSend.append('id_user', session?.id);
+			formDataToSend.append('compte', 'entreprise');
+			
+			if (formData.logo) {
+				formDataToSend.append('logo', formData.logo);
+			}
+			
+			if (formData.documents.businessRegister) {
+				formDataToSend.append('doc', formData.documents.businessRegister);
+			}
+			
+			
+			
+			// Send to server
+			const response = await axios.post(
+				API_URLS.API_URL_ENREGISTREMENT_ENTREPRISE(),
+				formDataToSend,
+				{
+					headers: {
+						'Content-Type': 'multipart/form-data'
+					}
+				}
+			);
+
+			const data = await response.data;
+			
+			if (data.success) {
+				setSuccess('Entreprise créée avec succès!');
+				Swal.fire({
+					title: 'Succès',
+					text: 'Entreprise créée avec succès!',
+					icon: 'success'
+				});
+				setTimeout(() => {
+					onClose();
+					// Recharger la liste des entreprises après création
+					window.location.reload();
+				}, 1500);
+			} else {
+				setError(data.message || 'Une erreur est survenue');
+			}
+		} catch (err) {
+			setError('Erreur de connexion au serveur. Veuillez réessayer.');
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+				{/* En-tête fixe */}
+				<div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 z-10">
+					<div className="flex justify-between items-center">
+						<div>
+							<h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+								Créer une nouvelle entreprise
+							</h3>
+							<p className="text-sm text-gray-500 mt-1">
+								Remplissez les informations pour créer une nouvelle entreprise
+							</p>
+						</div>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+								aria-label="Fermer"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+				</div>
+
+				<div className="p-4 sm:p-6">
+					{error && (
+						<div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+							{error}
+						</div>
+					)}
+					
+					{success && (
+						<div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm">
+							{success}
+						</div>
+					)}
+					
+					<form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
+						{/* Section Informations principales */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Building className="w-5 h-5 mr-2 text-blue-600" />
+								Informations principales
+							</h4>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Nom de l&apos;entreprise
+								</label>
+								<input
+									type="text"
+									name="nom"
+									value={formData.nom}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									placeholder="Ex: TechCorp"
+								/>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Type de l&apos;entreprise
+									</label>
+								<select 
+									name="type"
+									value={formData.type}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+								>
+									<option value="">Sélectionner un type</option>
+									{TYPE_ENTREPRISE_PREDEFINIES.map((type, index) => (
+										<option key={index} value={type}>
+											{type}
+										</option>
+									))}
+								</select>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Domaine d&apos;activité
+									</label>
+									<select 
+										name="domaine"
+										value={formData.domaine}
+										onChange={handleChange}
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									>
+										<option value="">Sélectionner un domaine</option>
+										{DOMAINES_PREDEFINIES.map((domaine, index) => (
+											<option key={index} value={domaine.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}>
+												{domaine}
+											</option>
+										))}
+									</select>
+								</div>
+							</div>
+							
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Numéro RCCM (facultatif)
+								</label>
+								<input
+									type="text"
+									name="rccm"
+									value={formData.rccm}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									placeholder="Ex: RB/ABC/12/12345"
+								/>
+							</div>
+							
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Description
+								</label>
+								<textarea
+									name="description"
+									value={formData.description}
+									onChange={handleChange}
+									rows="4"
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									placeholder="Décrivez votre entreprise en quelques phrases..."
+								></textarea>
+							</div>
+						</div>
+
+						{/* Section Coordonnées */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Phone className="w-5 h-5 mr-2 text-blue-600" />
+								Coordonnées
+							</h4>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Email de l&apos;entreprise
+									</label>
+									<div className="relative">
+										<Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="email"
+											name="email"
+											value={formData.email}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="contact@entreprise.com"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Pays
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="pays"
+											value={formData.pays}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value="">Sélectionner un pays</option>
+											{PAYS_PREDEFINIES.map((pays, index) => (
+												<option key={index} value={pays}>
+													{pays}
+												</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Téléphone
+									</label>
+									<div className="relative">
+										<Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="tel"
+											name="contact"
+											value={formData.contact}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="+229 XXXXXXXX"
+										/>
+									</div>
+								</div>
+
+								<div className="md:col-span-2">
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Siège - Ville
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="siege"
+											value={formData.siege}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="Ex: Cotonou"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Section Documents */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<FileText className="w-5 h-5 mr-2 text-blue-600" />
+								Documents
+							</h4>
+
+							<div>
+								{/* Logo de l'entreprise */}
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Logo de l&apos;entreprise
+									</label>
+									<div 
+										className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors hover:border-blue-400 ${formData.logo ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+										onClick={() => document.getElementById("logo-upload").click()}
+									>
+										<div className="flex flex-col items-center justify-center space-y-2">
+											<div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+												<Image className="w-6 h-6 text-blue-600" />
+											</div>
+
+											{formData.logoPreview ? (
+												<>
+													<div className="flex items-center justify-center px-3 py-1.5 bg-blue-50 rounded-lg">
+														<Image className="w-4 h-4 text-blue-500 mr-2" />
+														<span className="text-xs font-medium text-blue-600 truncate max-w-[150px]">
+															Logo téléchargé
+														</span>
+													</div>
+												</>
+											) : (
+												<>
+													<p className="text-sm text-gray-700">
+														Déposer le logo ici
+													</p>
+													<p className="text-xs text-gray-400">
+														Formats: PNG, JPG, SVG
+													</p>
+												</>
+											)}
+										</div>
+										<input
+											id="logo-upload"
+											type="file"
+											accept="image/*"
+											className="hidden"
+											onChange={handleLogoChange}
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Boutons d'action */}
+						<div className="sticky bottom-0 bg-white p-4 border-t border-gray-100 flex flex-col xs:flex-row gap-3 justify-end">
+							<button
+								type="button"
+								onClick={onClose}
+								disabled={loading}
+								className="w-full xs:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors touch-manipulation text-sm sm:text-base disabled:opacity-50"
+							>
+								Annuler
+							</button>
+							<button
+								type="submit"
+								disabled={loading}
+								className="w-full xs:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md hover:shadow-lg touch-manipulation text-sm sm:text-base disabled:opacity-50 flex items-center justify-center"
+							>
+								{loading ? (
+									<>
+										<Loader className="w-4 h-4 mr-2 animate-spin" />
+										Traitement...
+									</>
+								) : 'Créer l\'entreprise'}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+CreateCompanyModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+};
+
+// Composant Modal pour le profil particulier
+const ProfileModal = ({
+	isOpen,
+	onClose,
+	profile,
+	type,
+	onEdit,
+	onDelete,
+	onCreateJob,
+}) => {
+	const navigate = useNavigate();
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all max-h-[90vh] overflow-y-auto">
+				<div className="p-4 sm:p-6">
+					<div className="flex justify-between items-center mb-4 sm:mb-6">
+						<h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+							{type === "company"
+								? "Profil d'entreprise"
+								: "Profil particulier"}
+						</h3>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+							aria-label="Fermer"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+
+					<div className="flex flex-col items-center mb-4 sm:mb-6">
+						<div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-3 sm:mb-4">
+							<div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transform rotate-6 opacity-20"></div>
+							<div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-4 border-blue-100 shadow-lg relative z-10">
+								<img
+									src={type === "company" 
+										? (profile?.logo ? API_BASE_URL + profile.logo : "https://via.placeholder.com/150") 
+										: (profile?.profil ? API_BASE_URL + profile.profil : "https://via.placeholder.com/150")
+									}
+									alt="Profile"
+									className="w-full h-full object-cover"
+								/>
+							</div>
+						</div>
+						<h4 className="text-lg sm:text-xl font-bold text-gray-900">
+							{type === "company"
+								? profile.nom
+								: `${profile.nom || ""} ${profile.prenom || ""}`
+							}
+							</h4>
+
+						{type === "company" ? (
+							<>
+								<div className="mt-3 sm:mt-4 space-y-2 w-full">
+									<div className="flex items-center text-gray-600">
+										<Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.followers} abonnés
+										</span>
+									</div>
+									<div className="flex items-center text-gray-600">
+										<Mail className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.email}
+										</span>
+									</div>
+									<div className="flex items-center text-gray-600">
+										<Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.contact}
+										</span>
+									</div>
+									<div className="flex items-center text-gray-600">
+										<MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.siege || "Non spécifié"}
+										</span>
+									</div>
+									<div className="mt-3 sm:mt-4">
+										<h5 className="font-medium text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
+											Résumé
+										</h5>
+										<p className="text-gray-600 text-xs sm:text-sm">
+											{profile.description || "Aucun résumé disponible"}
+										</p>
+									</div>
+								</div>
+							</>
+						) : (
+							<>
+								<p dangerouslySetInnerHTML={{ __html: profile.domaine || "Domaine non spécifié" }} className="text-gray-600 mt-1 text-sm sm:text-base">
+									
+								</p>
+								<div className="mt-3 sm:mt-4 space-y-2 w-full">
+									<div className="flex items-center text-gray-600">
+										<Mail className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.email}
+										</span>
+									</div>
+									<div className="flex items-center text-gray-600">
+										<Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+										<span className="text-sm sm:text-base">
+											{profile.contact}
+										</span>
+									</div>
+									{profile.adresse && (
+										<div className="flex items-center text-gray-600">
+											<MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+											<span className="text-sm sm:text-base">
+												{profile.adresse}
+											</span>
+										</div>
+									)}
+									{profile.cv && (
+										<div className="flex items-center text-gray-600">
+											<FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mr-2" />
+											<a 
+												href={API_BASE_URL + profile.cv} 
+												target="_blank" 
+												rel="noopener noreferrer"
+												className="text-sm sm:text-base text-blue-600 hover:underline"
+											>
+												Voir le CV
+											</a>
+										</div>
+									)}
+								</div>
+							</>
+						)}
+					</div>
+
+					<div className="flex flex-col xs:flex-row space-y-2 xs:space-y-0 xs:space-x-3 justify-center">
+						{type === "company" ? (
+							<>
+								<button
+									onClick={() => {
+										onClose();
+										onEdit(profile);
+									}}
+									className="w-full xs:w-auto px-4 py-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center touch-manipulation"
+								>
+									<Edit2 className="w-4 h-4 mr-2" />
+									Modifier
+								</button>
+								<button
+									className="w-full xs:w-auto px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center touch-manipulation"
+									onClick={() => {
+										onClose();
+										onDelete(profile);
+									}}
+								>
+									<Trash2 className="w-4 h-4 mr-2" />
+									Supprimer
+								</button>
+								<button
+									onClick={() => {
+										onClose();
+										onCreateJob(profile);
+									}}
+									className="w-full xs:w-auto px-4 py-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex items-center justify-center touch-manipulation"
+								>
+									<Briefcase className="w-4 h-4 mr-2" />
+									Créer une offre
+								</button>
+							</>
+						) : (
+							<>
+								<button
+									onClick={() => {
+										onClose();
+										onEdit(profile);
+									}}
+									className="w-full xs:w-auto px-4 py-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-colors flex items-center justify-center touch-manipulation"
+								>
+									<Edit2 className="w-4 h-4 mr-2" />
+									Modifier
+								</button>
+								<button
+									onClick={() => {
+										onClose();
+										onCreateJob(profile);
+									}}
+									className="w-full xs:w-auto px-4 py-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-colors flex items-center justify-center touch-manipulation"
+								>
+									<Briefcase className="w-4 h-4 mr-2" />
+									Créer une offre
+								</button>
+							</>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+ProfileModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+	profile: PropTypes.object,
+	type: PropTypes.string.isRequired,
+	onEdit: PropTypes.func,
+	onDelete: PropTypes.func,
+	onCreateJob: PropTypes.func,
+};
+
+// Composant Modal pour modifier le profil entreprise
+const EditCompanyModal = ({ isOpen, onClose, company }) => {
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+	const [success, setSuccess] = useState('');
+	const [formData, setFormData] = useState({
+		nom: '',
+		type: '',
+		domaine: '',
+		email: '',
+		contact: '',
+		siege: '',
+		pays: '',
+		description: '',
+		logo: null,
+		logoPreview: null,
+		documents: {
+			businessRegister: null
+		}
+	});
+	
+	useEffect(() => {
+		if (company) {
+			setFormData({
+				nom: company.nom || '',
+				type: company.type || '',
+				domaine: company.domaine || '',
+				country: company.pays || '',
+				email: company.email || '',
+				contact: company.contact || '',
+				siege: company.siege || '',
+				description: company.description || '',
+				logo: null,
+				logoPreview: company.logo ? API_BASE_URL + company.logo : null,
+				documents: {
+					businessRegister: null
+				}
+			});
+		}
+	}, [company]);
+	
+	const handleChange = (e) => {
+		const { name, value } = e.target;
+		setFormData(prev => ({
+			...prev,
+			[name]: value
+		}));
+	};
+	
+	const handleLogoChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			setFormData(prev => ({
+				...prev,
+				logo: file,
+				logoPreview: URL.createObjectURL(file)
+			}));
+		}
+	};
+	
+	const handleFileChange = (e, documentType) => {
+		if (e.target.files && e.target.files[0]) {
+			setFormData((prev) => ({
+				...prev,
+				documents: {
+					...prev.documents,
+					[documentType]: e.target.files[0],
+				},
+			}));
+		}
+	};
+	
+	const validateForm = () => {
+		if (!formData.nom.trim()) return "Le nom de l'entreprise est requis";
+		if (!formData.email.trim()) return "L'email est requis";
+		if (!formData.contact.trim()) return "Le numéro de téléphone est requis";
+		
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(formData.email)) return "Format d'email invalide";
+		if (!formData.country.trim()) return "Le pays est requis";
+		
+		return null;
+	};
+	
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		
+		// Reset messages
+		setError('');
+		setSuccess('');
+		
+		// Validate form
+		const validationError = validateForm();
+		if (validationError) {
+			setError(validationError);
+			return;
+		}
+		
+		setLoading(true);
+		
+		try {
+			// Create FormData object to handle file upload
+			const formDataToSend = new FormData();
+			formDataToSend.append('id', company?.id);
+			formDataToSend.append('nom', formData.nom);
+			formDataToSend.append('type', formData.type);
+			formDataToSend.append('domaine', formData.domaine);
+			formDataToSend.append('email', formData.email);
+			formDataToSend.append('contact', formData.contact);
+			formDataToSend.append('siege', formData.siege);
+			formDataToSend.append('pays', formData.country);
+			formDataToSend.append('description', formData.description);
+			// Ajouter un paramètre pour indiquer qu'il s'agit d'une mise à jour
+			formDataToSend.append('action', 'update');
+			
+			if (formData.logo) {
+				formDataToSend.append('logo', formData.logo);
+			}
+			
+			if (formData.documents.businessRegister) {
+				formDataToSend.append('doc', formData.documents.businessRegister);
+			}
+			
+			// Send to server
+			const response = await fetch(API_URLS.API_URL_UPDATE_ENTREPRISE(), {
+				method: 'POST',
+				body: formDataToSend
+			});
+			
+			const data = await response.json();
+			
+			if (data.success) {
+				setSuccess('Profil entreprise mis à jour avec succès!');
+				Swal.fire({
+					title: 'Profil entreprise mis à jour avec succès!',
+					icon: 'success',
+					confirmButtonText: 'OK'
+				});
+				setTimeout(() => {
+					onClose();
+					// Recharger la liste des entreprises après mise à jour
+					window.location.reload();
+				}, 1500);
+			} else {
+				setError(data.message || 'Une erreur est survenue');
+			}
+		} catch (err) {
+			error('Error updating company profile:', err);
+			setError('Erreur de connexion au serveur. Veuillez réessayer.');
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+				{/* En-tête fixe */}
+				<div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 z-10">
+					<div className="flex justify-between items-center">
+						<div>
+							<h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+								Modifier le profil entreprise
+							</h3>
+							<p className="text-sm text-gray-500 mt-1">
+								Mettez à jour les informations de votre entreprise
+							</p>
+						</div>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+							aria-label="Fermer"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+				</div>
+
+				<div className="p-4 sm:p-6">
+					{error && (
+						<div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+							{error}
+						</div>
+					)}
+					
+					{success && (
+						<div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm">
+							{success}
+						</div>
+					)}
+					
+					<form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
+						{/* Section Informations principales */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Building className="w-5 h-5 mr-2 text-blue-600" />
+								Informations principales
+							</h4>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Nom de l&apos;entreprise
+								</label>
+								<input
+									type="text"
+									name="nom"
+									value={formData.nom}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									placeholder="Ex: TechCorp"
+								/>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Type de l&apos;entreprise
+									</label>
+									
+								
+
+								<select 
+									name="type"
+									value={formData.type}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+								>
+									<option value="">Sélectionner un type</option>
+									{TYPE_ENTREPRISE_PREDEFINIES.map((type, index) => (
+										<option key={index} value={type}>
+											{type}
+										</option>
+									))}
+								</select>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Domaine d&apos;activité
+									</label>
+									<select 
+										name="domaine"
+										value={formData.domaine}
+										onChange={handleChange}
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									>
+										<option value={formData.domaine.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}>{formData.domaine}</option>
+										{DOMAINES_PREDEFINIES.map((domaine, index) => domaine !== formData.domaine && (
+											<option key={index} value={domaine.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_')}>
+												{domaine}
+											</option>
+										))}
+									</select>
+								</div>
+							</div>
+							
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Description
+								</label>
+								<textarea
+									name="description"
+									value={formData.description}
+									onChange={handleChange}
+									rows="4"
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+									placeholder="Décrivez votre entreprise en quelques phrases..."
+								></textarea>
+							</div>
+						</div>
+
+						{/* Section Coordonnées */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Phone className="w-5 h-5 mr-2 text-blue-600" />
+								Coordonnées
+							</h4>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Email de l&apos;entreprise
+									</label>
+									<div className="relative">
+										<Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="email"
+											name="email"
+											value={formData.email}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="contact@entreprise.com"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Pays
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="pays"
+											value={formData.country}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value={formData.country}>{formData.country}</option>
+											{PAYS_PREDEFINIES.map((pays, index) => pays !== formData.country && (
+												<option key={index} value={pays}>
+													{pays}
+												</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Téléphone
+									</label>
+									<div className="relative">
+										<Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="tel"
+											name="contact"
+											value={formData.contact}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="+229 XXXXXXXX"
+										/>
+									</div>
+								</div>
+
+								<div className="md:col-span-2">
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Siège - Ville
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="siege"
+											value={formData.siege}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="Ex: Cotonou"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Section Documents */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<FileText className="w-5 h-5 mr-2 text-blue-600" />
+								Documents
+							</h4>
+
+							<div>
+								{/* Logo de l'entreprise */}
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-2">
+										Logo de l&apos;entreprise
+									</label>
+									<div 
+										className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors hover:border-blue-400 ${formData.logo ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+										onClick={() => document.getElementById("logo-upload").click()}
+									>
+										<div className="flex flex-col items-center justify-center space-y-2">
+											<div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+												<Image className="w-6 h-6 text-blue-600" />
+											</div>
+
+											{formData.logoPreview ? (
+												<>
+													<div className="flex items-center justify-center px-3 py-1.5 bg-blue-50 rounded-lg">
+														<Image className="w-4 h-4 text-blue-500 mr-2" />
+														<span className="text-xs font-medium text-blue-600 truncate max-w-[150px]">
+															Logo téléchargé
+														</span>
+													</div>
+												</>
+											) : (
+												<>
+													<p className="text-sm text-gray-700">
+														Déposer le logo ici
+													</p>
+													<p className="text-xs text-gray-400">
+														Formats: PNG, JPG, SVG
+													</p>
+												</>
+											)}
+										</div>
+										<input
+											id="logo-upload"
+											type="file"
+											accept="image/*"
+											className="hidden"
+											onChange={handleLogoChange}
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Boutons d'action */}
+						<div className="sticky bottom-0 bg-white p-4 border-t border-gray-100 flex flex-col xs:flex-row gap-3 justify-end">
+							<button
+								type="button"
+								onClick={onClose}
+								disabled={loading}
+								className="w-full xs:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors touch-manipulation text-sm sm:text-base disabled:opacity-50"
+							>
+								Annuler
+							</button>
+							<button
+								type="submit"
+								disabled={loading}
+								className="w-full xs:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md hover:shadow-lg touch-manipulation text-sm sm:text-base disabled:opacity-50 flex items-center justify-center"
+							>
+								{loading ? (
+									<>
+										<Loader className="w-4 h-4 mr-2 animate-spin" />
+										Traitement...
+									</>
+								) : 'Enregistrer'}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+EditCompanyModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+	company: PropTypes.object,
+};
+
+// Composant Modal pour modifier le profil particulier
+const EditParticularModal = ({ isOpen, onClose, particular }) => {
+	const [formData, setFormData] = useState({
+		nom: particular?.nom || '',
+		prenom: particular?.prenom || '',
+		email: particular?.email || '',
+		contact: particular?.contact || '',
+		domaine: particular?.domaine || '',
+		adresse: particular?.adresse || '',
+		profil: null,
+		profilPreview: particular?.profil ? API_BASE_URL + particular.profil : null,
+		cv: null,
+		cvName: particular?.cv ? particular.cv.split('/').pop() : ''
+	});
+	
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState('');
+	const [success, setSuccess] = useState('');
+	
+	useEffect(() => {
+		if (particular) {
+			setFormData({
+				nom: particular.nom || '',
+				prenom: particular.prenom || '',
+				email: particular.email || '',
+				contact: particular.contact || '',
+				domaine: particular.domaine || '',
+				adresse: particular.adresse || '',
+				profil: null,
+				profilPreview: particular.profil ? API_BASE_URL + particular.profil : null,
+				cv: null,
+				cvName: particular.cv ? particular.cv.split('/').pop() : ''
+			});
+		}
+	}, [particular]);
+	
+	const handleChange = (e) => {
+		const { name, value } = e.target;
+		setFormData(prev => ({
+			...prev,
+			[name]: value
+		}));
+	};
+	
+	const handleProfilChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			setFormData(prev => ({
+				...prev,
+				profil: file,
+				profilPreview: URL.createObjectURL(file)
+			}));
+		}
+	};
+	
+	const handleCvChange = (e) => {
+		const file = e.target.files[0];
+		if (file) {
+			setFormData(prev => ({
+				...prev,
+				cv: file,
+				cvName: file.name
+			}));
+		}
+	};
+	
+	const validateForm = () => {
+		if (!formData.nom.trim()) return "Le nom est requis";
+		if (!formData.prenom.trim()) return "Le prénom est requis";
+		if (!formData.email.trim()) return "L'email est requis";
+		if (!formData.contact.trim()) return "Le numéro de téléphone est requis";
+		
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(formData.email)) return "Format d'email invalide";
+		
+		return null;
+	};
+	
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		
+		// Reset messages
+		setError('');
+		setSuccess('');
+		
+		// Validate form
+		const validationError = validateForm();
+		if (validationError) {
+			setError(validationError);
+			return;
+		}
+		
+		setLoading(true);
+		
+		try {
+			// Create FormData object to handle file upload
+			const formDataToSend = new FormData();
+			formDataToSend.append('id', particular?.id);
+			formDataToSend.append('nom', formData.nom);
+			formDataToSend.append('prenom', formData.prenom);
+			formDataToSend.append('email', formData.email);
+			formDataToSend.append('contact', formData.contact);
+			formDataToSend.append('domaine', formData.domaine);
+			formDataToSend.append('adresse', formData.adresse);
+			
+			if (formData.profil) {
+				formDataToSend.append('profil', formData.profil);
+			}
+			
+			if (formData.cv) {
+				formDataToSend.append('cv', formData.cv);
+			}
+			
+			// Send to server
+			const response = await axios.post(
+				`${API_BASE_URL}/api/particuliers/update`,
+				formDataToSend,
+				{
+					headers: {
+						'Content-Type': 'multipart/form-data'
+					}
+				}
+			);
+			
+			if (response.data.success) {
+				setSuccess('Profil particulier mis à jour avec succès!');
+				setTimeout(() => {
+					onClose();
+				}, 1500);
+			} else {
+				setError(response.data.message || 'Une erreur est survenue');
+			}
+		} catch (err) {
+			setError('Erreur de connexion au serveur. Veuillez réessayer.');
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] overflow-y-auto">
+				{/* En-tête fixe */}
+				<div className="sticky top-0 bg-white px-4 sm:px-6 py-4 border-b border-gray-100 z-10">
+					<div className="flex justify-between items-center">
+						<div>
+							<h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+								Modifier le profil particulier
+							</h3>
+							<p className="text-sm text-gray-500 mt-1">
+								Mettez à jour vos informations personnelles
+							</p>
+						</div>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+							aria-label="Fermer"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+				</div>
+
+				<div className="p-4 sm:p-6">
+					{error && (
+						<div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+							{error}
+						</div>
+					)}
+					
+					{success && (
+						<div className="mb-4 p-3 bg-green-50 text-green-600 rounded-lg text-sm">
+							{success}
+						</div>
+					)}
+					
+					<form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
+						{/* Section photo de profil */}
+						<div className="flex flex-col items-center">
+							<div className="relative w-24 h-24 sm:w-32 sm:h-32 group">
+								<div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transform rotate-6 opacity-20 group-hover:rotate-12 transition-transform duration-300"></div>
+								<div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-blue-100 shadow-lg relative z-10 group-hover:border-blue-300 transition-colors">
+									{formData.profilPreview ? (
+										<img
+											src={formData.profilPreview}
+											alt="Photo de profil"
+											className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+										/>
+									) : (
+										<div className="w-full h-full flex items-center justify-center bg-gray-100">
+											<User className="w-12 h-12 text-gray-400" />
+										</div>
+									)}
+									<label htmlFor="profil-upload" className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-pointer">
+										<div className="bg-white/20 backdrop-blur-sm p-2 rounded-full">
+											<Upload className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+										</div>
+									</label>
+									<input 
+										id="profil-upload" 
+										type="file" 
+										accept="image/*" 
+										className="hidden" 
+										onChange={handleProfilChange}
+									/>
+								</div>
+							</div>
+							<label htmlFor="profil-upload" className="text-sm text-blue-600 mt-2 font-medium cursor-pointer">
+								Modifier la photo
+							</label>
+						</div>
+
+						{/* Section Informations personnelles */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<User className="w-5 h-5 mr-2 text-blue-600" />
+								Informations personnelles
+							</h4>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Nom
+									</label>
+									<input
+										type="text"
+										name="nom"
+										value={formData.nom}
+										onChange={handleChange}
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+										placeholder="Votre nom"
+									/>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Prénom
+									</label>
+									<input
+										type="text"
+										name="prenom"
+										value={formData.prenom}
+										onChange={handleChange}
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+										placeholder="Votre prénom"
+									/>
+								</div>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Domaine de compétence
+								</label>
+								<select 
+									name="domaine"
+									value={formData.domaine}
+									onChange={handleChange}
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+								>
+									<option value="">Sélectionner un domaine</option>
+									<option value="Développement web">Développement web</option>
+									<option value="Développement mobile">Développement mobile</option>
+									<option value="Design graphique">Design graphique</option>
+									<option value="Marketing digital">Marketing digital</option>
+									<option value="Gestion de projet">Gestion de projet</option>
+									<option value="Comptabilité">Comptabilité</option>
+									<option value="Ressources humaines">Ressources humaines</option>
+									<option value="Autre">Autre</option>
+								</select>
+							</div>
+							
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									CV
+								</label>
+								<div className="mt-1 flex items-center">
+									<label
+										htmlFor="cv-upload"
+										className="relative cursor-pointer bg-white rounded-xl border border-dashed border-blue-300 px-4 py-2.5 sm:py-3 hover:bg-blue-50 text-blue-600 transition-colors flex items-center"
+									>
+										<FileCheck className={`w-5 h-5 ${formData.cvName ? 'text-green-500' : 'text-blue-500'} mr-2`} />
+										<span className="text-sm sm:text-base">
+											{formData.cvName ? formData.cvName : "Télécharger votre CV"}
+										</span>
+										<input
+											id="cv-upload"
+											name="cv"
+											type="file"
+											accept=".pdf,.doc,.docx"
+											className="sr-only"
+											onChange={handleCvChange}
+										/>
+									</label>
+								</div>
+							</div>
+						</div>
+
+						{/* Section Coordonnées */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Phone className="w-5 h-5 mr-2 text-blue-600" />
+								Coordonnées
+							</h4>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Email
+									</label>
+									<div className="relative">
+										<Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="email"
+											name="email"
+											value={formData.email}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="votre@email.com"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Téléphone
+									</label>
+									<div className="relative">
+										<Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="tel"
+											name="contact"
+											value={formData.contact}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="+229 XXXXXXXX"
+										/>
+									</div>
+								</div>
+
+								<div className="md:col-span-2">
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Adresse
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="adresse"
+											value={formData.adresse}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all py-2.5 sm:py-3 text-sm sm:text-base"
+											placeholder="Ex: Cotonou, Quartier X"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Boutons d'action */}
+						<div className="sticky bottom-0 bg-white p-4 border-t border-gray-100 flex flex-col xs:flex-row gap-3 justify-end">
+							<button
+								type="button"
+								onClick={onClose}
+								disabled={loading}
+								className="w-full xs:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors touch-manipulation text-sm sm:text-base disabled:opacity-50"
+							>
+								Annuler
+							</button>
+							<button
+								type="submit"
+								disabled={loading}
+								className="w-full xs:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md hover:shadow-lg touch-manipulation text-sm sm:text-base disabled:opacity-50 flex items-center justify-center"
+							>
+								{loading ? (
+									<>
+										<Loader className="w-4 h-4 mr-2 animate-spin" />
+										Traitement...
+									</>
+								) : 'Enregistrer'}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+EditParticularModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+	particular: PropTypes.object,
+};
+
+// Composant Modal pour le formulaire d'emploi
+const JobFormModal = ({
+	isOpen,
+	onClose,
+	activeTab,
+	particuliers,
+	companies,
+	selectedProfile,
+	entreprises,
+}) => {
+	const { session } = useAuth();
+	const [formData, setFormData] = useState({
+		recruiterType: activeTab,
+		recruiterId:
+			activeTab === "particular"
+				? particuliers && particuliers[0]?.id.toString()
+				: selectedProfile
+				? selectedProfile.id.toString()
+				: "",
+		country: "Bénin",
+		title: "",
+		location: "",
+		domain: "",
+		level: "",
+		description: "",
+		languages: [],
+		headcount: "",
+		skills: "",
+		salary: "",
+		closingDate: "",
+		additionalKnowledge: "",
+		experience: "",
+		documents: {
+			cv: false,
+			coverLetter: false,
+			diploma: false,
+			workCertificate: false,
+			experienceProof: false,
+			trainingCertificate: false,
+			idCard: false,
+			criminalRecord: false,
+		},
+		submissionMethod: "ligne", // Valeur par défaut: en ligne
+		siteWeb: "", // Pour l'option site web ou email
+		adresse: "", // Pour l'option dépôt physique
+		contact: "", // Pour l'option dépôt physique
+		instructionsLigne: "", // Instructions pour postuler en ligne
+		visibilityDays: JOURS_MONTANT[0]?.jours.toString() || "30",
+	});
+	
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [error, setError] = useState("");
+	const [success, setSuccess] = useState("");
+
+	const handleChange = (e) => {
+		const { name, value } = e.target;
+		setFormData((prev) => ({
+			...prev,
+			[name]: value,
+		}));
+	};
+
+	const handleCheckboxChange = (category, item) => {
+		if (category === "documents") {
+			setFormData((prev) => ({
+				...prev,
+				documents: {
+					...prev.documents,
+					[item]: !prev.documents[item],
+				},
+			}));
+		} else if (category === "submissionMethod") {
+			// Pour la méthode de soumission, c'est un choix exclusif maintenant
+			setFormData((prev) => ({
+				...prev,
+				submissionMethod: item,
+			}));
+		}
+	};
+
+	const handleLanguageChange = (language) => {
+		const updatedLanguages = [...formData.languages];
+		if (updatedLanguages.includes(language)) {
+			const index = updatedLanguages.indexOf(language);
+			updatedLanguages.splice(index, 1);
+		} else {
+			updatedLanguages.push(language);
+		}
+		setFormData((prev) => ({
+			...prev,
+			languages: updatedLanguages,
+		}));
+	};
+
+	const validateForm = () => {
+		// Required fields
+		const requiredFields = {
+			title: "Titre du poste",
+			location: "Lieu",
+			domain: "Domaine",
+			level: "Niveau d'étude",
+			description: "Description",
+			experience: "Expérience",
+			skills: "Compétences",
+			closingDate: "Date de clôture"
+		};
+
+		// Check if any required field is empty
+		for (const [field, label] of Object.entries(requiredFields)) {
+			if (!formData[field]) {
+				setError(`Le champ "${label}" est obligatoire.`);
+				return false;
+			}
+		}
+
+		// Check if at least one submission method is selected
+		if (formData.submissionMethod.length === 0) {
+			setError("Veuillez sélectionner au moins un lieu de dépôt.");
+			return false;
+		}
+
+		// Check if at least one document is required
+		const hasRequiredDocument = Object.values(formData.documents).some(value => value);
+		if (!hasRequiredDocument) {
+			setError("Veuillez sélectionner au moins un document requis.");
+			return false;
+		}
+
+		// Check if recruiter is selected for company tab
+		if (activeTab === "company" && !formData.recruiterId) {
+			setError("Veuillez sélectionner une entreprise.");
+			return false;
+		}
+
+		return true;
+	};
+
+	const handleSubmit = async (e) => {
+		e.preventDefault();
+		
+		// Reset messages
+		setError("");
+		setSuccess("");
+		
+		// Validate form
+		if (!validateForm()) {
+			return;
+		}
+		
+		setIsSubmitting(true);
+		
+		try {
+			// Get visibility price from JOURS_MONTANT
+			const selectedVisibility = JOURS_MONTANT.find(
+				item => item.jours.toString() === formData.visibilityDays
+			);
+			const visibilityPrice = selectedVisibility ? selectedVisibility.montant : 0;
+			
+			// Construct the form data for API submission
+			const formDataToSubmit = new FormData();
+			
+			// Déterminer l'ID du recruteur et de l'entreprise en fonction du type de compte
+			let id_recruteur = session?.id || '';
+			let id_entreprise = '';
+			
+			if (activeTab === "particular" && particuliers && particuliers.length > 0) {
+				// Pour un particulier, l'id_entreprise est l'ID du particulier
+				id_entreprise = particuliers[0].id;
+			} else if (activeTab === "company" && formData.recruiterId) {
+				// Pour une entreprise, l'id_entreprise est l'ID de l'entreprise sélectionnée
+				id_entreprise = formData.recruiterId;
+			}
+			
+			// Adapter les données au format attendu par search_all_post_web_insert.php
+			formDataToSubmit.append('compte', activeTab === "company" ? 'entreprise' : 'particulier');
+			formDataToSubmit.append('id_recruteur', id_recruteur);
+			formDataToSubmit.append('id_entreprise', id_entreprise);
+			formDataToSubmit.append('pays', formData.country || 'Bénin');
+			formDataToSubmit.append('titre', formData.title || '');
+			formDataToSubmit.append('lieu_travail', formData.location || '');
+			formDataToSubmit.append('domaine', formData.domain || '');
+			formDataToSubmit.append('infos_descriptives', formData.description || '');
+			formDataToSubmit.append('effectifs', formData.headcount || '1');
+			formDataToSubmit.append('aptitude', formData.skills || '');
+			formDataToSubmit.append('date_cloture', formData.closingDate || '');
+			formDataToSubmit.append('connaissance', formData.additionalKnowledge || '');
+			formDataToSubmit.append('experience', formData.experience || '');
+			
+			// Ajouter date_expire, jours et montant pour la base de données
+			formDataToSubmit.append('jours', formData.visibilityDays || '30');
+			formDataToSubmit.append('montant', visibilityPrice);
+			
+			// Calculer la date d'expiration (aujourd'hui + jours de visibilité)
+			const today = new Date();
+			const expirationDate = new Date(today);
+			expirationDate.setDate(today.getDate() + parseInt(formData.visibilityDays || 30));
+			const formattedExpireDate = `${expirationDate.getDate()}/${expirationDate.getMonth() + 1}/${expirationDate.getFullYear()}`;
+			formDataToSubmit.append('date_expire', formattedExpireDate);
+			
+			// Traiter les langues
+			if (formData.languages && formData.languages.length > 0) {
+				// Le backend attend un tableau de langues
+				formData.languages.forEach(langue => {
+					formDataToSubmit.append('langue[]', langue);
+				});
+			}
+			
+			// Traiter le niveau d'études
+			formDataToSubmit.append('niveau[]', formData.level || '');
+			
+			// Traiter les pièces demandées
+			const requiredDocuments = Object.entries(formData.documents)
+				.filter(([_, isRequired]) => isRequired)
+				.map(([docType, _]) => docType);
+			
+			formDataToSubmit.append('type_piece', requiredDocuments.join(','));
+			
+			// Gérer la méthode de soumission et les champs associés
+			formDataToSubmit.append('share', formData.submissionMethod);
+			
+			// Selon le type de soumission, ajouter les champs appropriés
+			if (formData.submissionMethod === 'ligne') {
+				formDataToSubmit.append('siteweb', "aucun"); // Valeur par défaut pour le backend
+				// Ajouter les instructions pour postuler en ligne dans un champ séparé
+				formDataToSubmit.append('instructions_ligne', formData.instructionsLigne || '');
+			} else if (formData.submissionMethod === 'site') {
+				formDataToSubmit.append('siteweb', formData.siteWeb || '');
+			} else if (formData.submissionMethod === 'email') {
+				formDataToSubmit.append('siteweb', formData.siteWeb || '');
+			} else if (formData.submissionMethod === 'contact') {
+				formDataToSubmit.append('adresse', formData.adresse || '');
+				formDataToSubmit.append('contact', formData.contact || '');
+			}
+			
+			console.log("Données de l'offre à soumettre:", Object.fromEntries(formDataToSubmit));
+			
+			// Utiliser l'URL correcte pour l'API
+			const apiUrl = `${API_BASE_URL}/search_all_post_web_insert.php`;
+			console.log("URL de l'API:", apiUrl);
+			
+			// API call to create job offer
+			const response = await fetch(apiUrl, {
+				method: 'POST',
+				body: formDataToSubmit
+			});
+			
+			// Vérifier la réponse et extraire les données
+			if (!response.ok) {
+				throw new Error(`Erreur HTTP: ${response.status}`);
+			}
+			
+			const data = await response.json();
+			
+			if (data.success) {
+				setSuccess("Offre d'emploi publiée avec succès! Vous serez redirigé vers la liste des offres.");
+				
+				// Afficher une notification de succès avec lien de téléchargement du reçu
+				Swal.fire({
+					title: 'Succès',
+					html: `
+						<div class="text-center">
+							<p>Offre d'emploi publiée avec succès!</p>
+							<p class="mt-3 text-sm text-gray-600">Votre reçu de publication est prêt</p>
+							<a href="${data.recu.url}" target="_blank" class="inline-flex items-center mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+								<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+								</svg>
+								Télécharger le reçu ${data.recu.is_pdf ? 'PDF' : 'HTML'}
+							</a>
+						</div>
+					`,
+					icon: 'success',
+					confirmButtonText: 'OK'
+				});
+				
+				// Close modal and reset form after delay
+				setTimeout(() => {
+					onClose();
+				}, 2000);
+			} else {
+				setError(data.message || "Une erreur est survenue lors de la publication de l'offre.");
+				
+				Swal.fire({
+					title: 'Erreur',
+					text: data.message || "Une erreur est survenue lors de la publication de l'offre.",
+					icon: 'error',
+					confirmButtonText: 'OK'
+				});
+			}
+		} catch (error) {
+			console.error("Erreur lors de la publication de l'offre:", error);
+			setError("Une erreur est survenue lors de la publication de l'offre. Veuillez réessayer.");
+			
+			Swal.fire({
+				title: 'Erreur',
+				text: "Une erreur est survenue lors de la publication de l'offre. Veuillez réessayer.",
+				icon: 'error',
+				confirmButtonText: 'OK'
+			});
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
+	// Déterminer le recruteur actuel basé sur l'ID sélectionné
+	const getCurrentRecruiter = () => {
+		if (activeTab === "particular") {
+			return particuliers && particuliers[0]; // Toujours utiliser le premier (unique) particulier
+		} else {
+			// Utiliser les entreprises passées en prop
+			if (!formData.recruiterId) return null;
+			
+			return entreprises && entreprises.find(
+				(r) => r && r.id && formData.recruiterId && r.id.toString() === formData.recruiterId.toString()
+			);
+		}
+	};
+
+	const currentRecruiter = getCurrentRecruiter();
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl transform transition-all max-h-[90vh] overflow-y-auto">
+				{/* En-tête fixe */}
+				<div className="sticky top-0 bg-white px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 z-10">
+					<div className="flex justify-between items-center">
+						<div>
+							<h3 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+								Publication d&apos;offre d&apos;emploi
+							</h3>
+							<p className="text-xs sm:text-sm text-gray-500 mt-1">
+								{activeTab === "particular"
+									? `Offre publiée en tant que particulier (${currentRecruiter?.name || ''})`
+									: currentRecruiter
+									? `Offre publiée par l'entreprise ${currentRecruiter.name || currentRecruiter.nom || ''}`
+									: "Sélectionnez une entreprise pour publier l'offre"}
+							</p>
+						</div>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full touch-manipulation"
+							aria-label="Fermer"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+				</div>
+
+				{/* Corps du formulaire avec sections */}
+				<div className="p-4 sm:p-6">
+					{/* Error and success messages */}
+					{error && (
+						<div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+							<div className="flex items-center">
+								<AlertCircle className="w-5 h-5 mr-2 text-red-500" />
+								{error}
+							</div>
+						</div>
+					)}
+					
+					{success && (
+						<div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-xl">
+							<div className="flex items-center">
+								<CheckCircle className="w-5 h-5 mr-2 text-green-500" />
+								{success}
+							</div>
+						</div>
+					)}
+					
+					<form className="space-y-6 sm:space-y-8" onSubmit={handleSubmit}>
+						{/* Section Recruteur */}
+						<div className="bg-blue-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<User className="w-5 h-5 mr-2 text-blue-600" />
+								{activeTab === "particular"
+									? "Particulier recruteur"
+									: "Entreprise recruteuse"}
+							</h4>
+
+							{activeTab === "company" ? (
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Sélectionnez une entreprise
+									</label>
+									<select
+										name="recruiterId"
+										value={formData.recruiterId}
+										onChange={handleChange}
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+									>
+										<option value="">-- Sélectionner une entreprise --</option>
+										{entreprises && entreprises.map((item) => (
+											<option key={item.id} value={item.id}>
+												{item.nom}
+											</option>
+										))}
+									</select>
+								</div>
+							) : null}
+
+							{currentRecruiter && (
+								<div className="flex items-center space-x-4">
+									<div className="relative w-12 h-12">
+										<div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transform rotate-6 opacity-20"></div>
+										<div className="w-12 h-12 rounded-full overflow-hidden border-2 border-blue-100 shadow-lg relative z-10">
+											<img
+												src={currentRecruiter.image || currentRecruiter.logo || "https://via.placeholder.com/150"}
+												alt={currentRecruiter.name || currentRecruiter.nom || "Recruteur"}
+												className="w-full h-full object-cover"
+											/>
+										</div>
+									</div>
+									<div>
+										<h5 className="font-medium text-gray-900">
+											{currentRecruiter.name || currentRecruiter.nom || ""}
+										</h5>
+										<p className="text-sm text-gray-500">
+											{currentRecruiter.email || ""}
+										</p>
+									</div>
+								</div>
+							)}
+						</div>
+
+						{/* Section 1: Informations de base */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<Briefcase className="w-5 h-5 mr-2 text-blue-600" />
+								Informations de base
+							</h4>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Pays de recrutement
+									</label>
+									<div className="relative">
+										<Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="country"
+											value={formData.country}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value="Bénin">Bénin</option>
+											<option value="Togo">Togo</option>
+											<option value="Côte d'Ivoire">Côte d&apos;Ivoire</option>
+											<option value="Sénégal">Sénégal</option>
+											<option value="Mali">Mali</option>
+											<option value="Burkina Faso">Burkina Faso</option>
+											<option value="Niger">Niger</option>
+											<option value="Cameroun">Cameroun</option>
+										</select>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Titre de recrutement
+									</label>
+									<div className="relative">
+										<Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="title"
+											value={formData.title}
+											onChange={handleChange}
+											placeholder="Ex: Développeur Full Stack"
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Lieu de travail
+									</label>
+									<div className="relative">
+										<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="location"
+											value={formData.location}
+											onChange={handleChange}
+											placeholder="Ex: Cotonou"
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Domaine d&apos;activité
+									</label>
+									<div className="relative">
+										<Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="domain"
+											value={formData.domain}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value="">Sélectionner un domaine</option>
+											{DOMAINES_PREDEFINIES.map((domaine) => (
+												<option key={domaine} value={domaine}>
+													{domaine}
+											</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Niveau d'étude requis
+									</label>
+									<div className="relative">
+										<GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="level"
+											value={formData.level}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value="">Sélectionner un niveau</option>
+											{NIVEAU_PREDEFINIES.map((niveau) => (
+												<option key={niveau} value={niveau}>
+													{niveau}
+												</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Expérience requise
+									</label>
+									<div className="relative">
+										<ClipboardCheck className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<select
+											name="experience"
+											value={formData.experience}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										>
+											<option value="">Sélectionner le niveau d'expérience</option>
+											{NIVEAU_EXPERIENCE_PREDEFINIES.map((experience) => (
+												<option key={experience} value={experience}>
+													{experience}
+												</option>
+											))}
+										</select>
+									</div>
+								</div>
+
+								<div className="md:col-span-2">
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Compétences requises
+									</label>
+									<div className="relative">
+										<Code className="absolute left-3 top-8 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<textarea
+											name="skills"
+											value={formData.skills}
+											onChange={handleChange}
+											rows="3"
+											placeholder="Listez les compétences requises (ex: JavaScript, PHP, Microsoft Office...)"
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										></textarea>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/* Section 2: Détails du poste */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<FileText className="w-5 h-5 mr-2 text-blue-600" />
+								Détails du poste
+							</h4>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Information descriptives relatives au recrutement
+								</label>
+								<textarea
+									name="description"
+									value={formData.description}
+									onChange={handleChange}
+									rows="4"
+									placeholder="Décrivez le poste, les responsabilités, et les attentes..."
+									className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+								></textarea>
+							</div>
+
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Langue(s) à maîtriser
+									</label>
+									<div className="space-y-2">
+										<div className="flex flex-wrap gap-2">
+											{LANGUES_PREDEFINIES.map((lang) => (
+												<button
+													key={lang}
+													type="button"
+													onClick={() => handleLanguageChange(lang)}
+													className={`px-3 py-1.5 rounded-lg text-sm ${
+														formData.languages.includes(lang)
+															? "bg-blue-100 text-blue-700 border-blue-300"
+															: "bg-gray-100 text-gray-700 border-gray-200"
+													} border hover:bg-opacity-80 transition-colors`}
+												>
+													{lang}
+												</button>
+											))}
+										</div>
+										<p className="text-xs text-gray-500">
+											Cliquez sur les langues requises
+										</p>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Effectif
+									</label>
+									<div className="relative">
+										<Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="number"
+											name="headcount"
+											value={formData.headcount}
+											onChange={handleChange}
+											min="1"
+											placeholder="Nombre de postes à pourvoir"
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Salaire
+									</label>
+									<div className="relative">
+										<DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="text"
+											name="salary"
+											value={formData.salary}
+											onChange={handleChange}
+											placeholder="Ex: 300 000 - 500 000 FCFA"
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										/>
+									</div>
+								</div>
+
+								<div>
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Date de clôture
+									</label>
+									<div className="relative">
+										<Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+										<input
+											type="date"
+											name="closingDate"
+											value={formData.closingDate}
+											onChange={handleChange}
+											className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+										/>
+									</div>
+								</div>
+
+								<div className="md:col-span-2">
+									<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+										Connaissance supplémentaire appréciable (facultative)
+									</label>
+									<textarea
+										name="additionalKnowledge"
+										value={formData.additionalKnowledge}
+										onChange={handleChange}
+										rows="3"
+										placeholder="Connaissances qui seraient un plus pour le candidat..."
+										className="w-full rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+									></textarea>
+								</div>
+							</div>
+						</div>
+
+						{/* Section 3: Modalités de candidature */}
+						<div className="bg-gray-50 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+							<h4 className="text-lg font-semibold text-gray-900 flex items-center">
+								<FileCheck className="w-5 h-5 mr-2 text-blue-600" />
+								Modalités de candidature
+							</h4>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+									Pièce(s) à joindre
+								</label>
+								<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.cv
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() => handleCheckboxChange("documents", "cv")}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.cv}
+												onChange={() => handleCheckboxChange("documents", "cv")}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Curriculum Vitae
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.coverLetter
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() =>
+											handleCheckboxChange("documents", "coverLetter")
+										}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.coverLetter}
+												onChange={() =>
+													handleCheckboxChange("documents", "coverLetter")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Lettre de motivation
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.diploma
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() => handleCheckboxChange("documents", "diploma")}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.diploma}
+												onChange={() =>
+													handleCheckboxChange("documents", "diploma")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Diplôme
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.workCertificate
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() =>
+											handleCheckboxChange("documents", "workCertificate")
+										}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.workCertificate}
+												onChange={() =>
+													handleCheckboxChange("documents", "workCertificate")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Certificat de travail
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.experienceProof
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() =>
+											handleCheckboxChange("documents", "experienceProof")
+										}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.experienceProof}
+												onChange={() =>
+													handleCheckboxChange("documents", "experienceProof")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Preuve des expériences
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.trainingCertificate
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() =>
+											handleCheckboxChange("documents", "trainingCertificate")
+										}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.trainingCertificate}
+												onChange={() =>
+													handleCheckboxChange(
+														"documents",
+														"trainingCertificate"
+													)
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Certificat de formation
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.idCard
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() => handleCheckboxChange("documents", "idCard")}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.idCard}
+												onChange={() =>
+													handleCheckboxChange("documents", "idCard")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Pièce d&apos;identité
+											</label>
+										</div>
+									</div>
+
+									<div
+										className={`p-3 rounded-xl border ${
+											formData.documents.criminalRecord
+												? "border-blue-300 bg-blue-50"
+												: "border-gray-200 bg-white"
+										} hover:border-blue-300 transition-colors cursor-pointer`}
+										onClick={() =>
+											handleCheckboxChange("documents", "criminalRecord")
+										}
+									>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												checked={formData.documents.criminalRecord}
+												onChange={() =>
+													handleCheckboxChange("documents", "criminalRecord")
+												}
+												className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+											/>
+											<label className="ml-2 text-sm font-medium text-gray-700">
+												Casier judiciaire
+											</label>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+									Durée de visibilité et montant
+								</label>
+								<div className="relative">
+									<Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+									<select
+										name="visibilityDays"
+										value={formData.visibilityDays}
+										onChange={handleChange}
+										className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+									>
+										{JOURS_MONTANT.map((option) => (
+											<option key={option.jours} value={option.jours.toString()}>
+												{option.jours} jours - {option.montant.toLocaleString()} FCFA
+											</option>
+										))}
+									</select>
+								</div>
+								<p className="mt-1 text-xs text-gray-500 italic">
+									Le montant sera facturé lors de la validation de l'offre
+								</p>
+							</div>
+
+							{/* Lieu de dépôt */}
+							<div>
+								<label className="block text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+									Lieu de dépôt
+								</label>
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+									{[
+										{ id: "ligne", label: "En ligne", description: "Les candidats postulent directement en ligne" },
+										{ id: "site", label: "Site web", description: "Les candidats postulent via un site web" },
+										{ id: "email", label: "Par email", description: "Les candidats envoient leur candidature par email" },
+										{ id: "contact", label: "Dépôt physique", description: "Les candidats déposent leur candidature en personne" },
+									].map((method) => (
+										<div
+											key={method.id}
+											className={`p-3 rounded-xl border ${
+												formData.submissionMethod === method.id
+													? "border-blue-300 bg-blue-50"
+													: "border-gray-200 bg-white"
+											} hover:border-blue-300 transition-colors cursor-pointer`}
+											onClick={() => handleCheckboxChange("submissionMethod", method.id)}
+										>
+											<div className="flex items-start">
+												<input
+													type="radio"
+													checked={formData.submissionMethod === method.id}
+													onChange={() => handleCheckboxChange("submissionMethod", method.id)}
+													className="w-4 h-4 text-blue-600 rounded-full mt-1 focus:ring-blue-500"
+												/>
+												<div className="ml-2">
+													<label className="text-sm font-medium text-gray-700">
+														{method.label}
+													</label>
+													<p className="text-xs text-gray-500 mt-1">
+														{method.description}
+													</p>
+												</div>
+											</div>
+										</div>
+									))}
+								</div>
+								
+								{/* Champs supplémentaires selon le lieu de dépôt sélectionné */}
+								{formData.submissionMethod === "ligne" && (
+									<div className="mt-3">
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											Instructions pour postuler en ligne
+										</label>
+										<div className="relative">
+											<FileText className="absolute left-3 top-8 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+											<textarea
+												name="instructionsLigne"
+												value={formData.instructionsLigne}
+												onChange={handleChange}
+												placeholder="Instructions détaillées pour les candidats (comment postuler, documents à préparer, etc.)"
+												rows="3"
+												className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+											></textarea>
+										</div>
+									</div>
+								)}
+								
+								{formData.submissionMethod === "site" && (
+									<div className="mt-3">
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											URL du site web
+										</label>
+										<div className="relative">
+											<Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+											<input
+												type="text"
+												name="siteWeb"
+												value={formData.siteWeb}
+												onChange={handleChange}
+												placeholder="https://example.com/recrutement"
+												className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+											/>
+										</div>
+									</div>
+								)}
+								
+								{formData.submissionMethod === "email" && (
+									<div className="mt-3">
+										<label className="block text-sm font-medium text-gray-700 mb-1">
+											Adresse email
+										</label>
+										<div className="relative">
+											<Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+											<input
+												type="email"
+												name="siteWeb"
+												value={formData.siteWeb}
+												onChange={handleChange}
+												placeholder="recrutement@example.com"
+												className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+											/>
+										</div>
+									</div>
+								)}
+								
+								{formData.submissionMethod === "contact" && (
+									<div className="mt-3 space-y-3">
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">
+												Adresse de dépôt
+											</label>
+											<div className="relative">
+												<MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+												<input
+													type="text"
+													name="adresse"
+													value={formData.adresse}
+													onChange={handleChange}
+													placeholder="Adresse complète du lieu de dépôt"
+													className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+												/>
+											</div>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-1">
+												Contact pour dépôt
+											</label>
+											<div className="relative">
+												<Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+												<input
+													type="text"
+													name="contact"
+													value={formData.contact}
+													onChange={handleChange}
+													placeholder="Numéro de téléphone ou personne à contacter"
+													className="w-full pl-10 rounded-xl border-gray-200 focus:ring-2 focus:ring-blue-500 py-2.5 sm:py-3 text-sm sm:text-base"
+												/>
+											</div>
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+
+						{/* Boutons d'action */}
+						<div className="sticky bottom-0 bg-white p-4 border-t border-gray-100 flex flex-col xs:flex-row gap-3 justify-end">
+							<button
+								type="button"
+								onClick={onClose}
+								className="w-full xs:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors touch-manipulation text-sm sm:text-base"
+								disabled={isSubmitting}
+							>
+								Annuler
+							</button>
+							<button
+								type="submit"
+								className="w-full xs:w-auto px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-colors shadow-md hover:shadow-lg touch-manipulation text-sm sm:text-base flex items-center justify-center"
+								disabled={isSubmitting}
+							>
+								{isSubmitting ? (
+									<>
+										<svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+											<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Traitement...
+									</>
+								) : (
+									<>Payer et publier l&apos;offre</>
+								)}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+JobFormModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+	activeTab: PropTypes.string.isRequired,
+	particuliers: PropTypes.array.isRequired,
+	companies: PropTypes.array.isRequired,
+	selectedProfile: PropTypes.object,
+	entreprises: PropTypes.array.isRequired,
+};
+
+// Ajout du composant DeleteConfirmationModal
+const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName }) => {
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all">
+				<div className="p-4 sm:p-6">
+					<div className="flex flex-col items-center text-center">
+						<div className="w-14 h-14 sm:w-16 sm:h-16 bg-red-50 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+							<Trash2 className="w-6 h-6 sm:w-8 sm:h-8 text-red-500" />
+						</div>
+
+						<h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">
+							Confirmer la suppression
+						</h3>
+
+						<p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base">
+							Êtes-vous sûr de vouloir supprimer {itemName} ? Cette action est
+							irréversible.
+						</p>
+
+						<div className="flex flex-col xs:flex-row space-y-2 xs:space-y-0 xs:space-x-3 w-full">
+							<button
+								onClick={onClose}
+								className="w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all touch-manipulation text-sm sm:text-base"
+							>
+								Annuler
+							</button>
+							<button
+								onClick={onConfirm}
+								className="w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all touch-manipulation text-sm sm:text-base"
+							>
+								Supprimer
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+DeleteConfirmationModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+	onConfirm: PropTypes.func.isRequired,
+	itemName: PropTypes.string,
+};
+
+// Ajout du composant modal pour télécharger un document de recrutement
+const UploadRecruitmentDocModal = ({ isOpen, onClose }) => {
+	const [file, setFile] = useState(null);
+	const [isDragging, setIsDragging] = useState(false);
+
+	// Empêcher le scroll du body quand la modale est ouverte
+	useEffect(() => {
+		if (isOpen) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "auto";
+		}
+
+		return () => {
+			document.body.style.overflow = "auto";
+		};
+	}, [isOpen]);
+
+	const handleDragOver = (e) => {
+		e.preventDefault();
+		setIsDragging(true);
+	};
+
+	const handleDragLeave = () => {
+		setIsDragging(false);
+	};
+
+	const handleDrop = (e) => {
+		e.preventDefault();
+		setIsDragging(false);
+
+		if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+			handleFileChange(e.dataTransfer.files[0]);
+		}
+	};
+
+	const handleFileChange = (uploadedFile) => {
+		setFile(uploadedFile);
+	};
+
+	const handleInputChange = (e) => {
+		if (e.target.files && e.target.files.length > 0) {
+			handleFileChange(e.target.files[0]);
+		}
+	};
+
+	const handleSubmit = (e) => {
+		e.preventDefault();
+		if (file) {
+			onClose();
+		}
+	};
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all max-h-[90vh] overflow-y-auto">
+				<div className="p-4 sm:p-6">
+					<div className="flex justify-between items-center mb-4 sm:mb-6">
+						<h3 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+							Télécharger votre document de recrutement
+						</h3>
+						<button
+							onClick={onClose}
+							className="p-2 hover:bg-gray-100 rounded-full transition-colors touch-manipulation"
+						>
+							<X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+						</button>
+					</div>
+
+					<form onSubmit={handleSubmit} className="space-y-6">
+						<div
+							className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+								isDragging
+									? "border-blue-500 bg-blue-50"
+									: "border-gray-300 hover:border-blue-400"
+							}`}
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
+							onDrop={handleDrop}
+							onClick={() => document.getElementById("file-upload").click()}
+						>
+							<div className="flex flex-col items-center justify-center space-y-3">
+								<div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center">
+									<Upload className="w-7 h-7 text-blue-600" />
+								</div>
+
+								{file ? (
+									<>
+										<div className="flex items-center justify-center px-4 py-2 bg-blue-50 rounded-lg">
+											<File className="w-5 h-5 text-blue-500 mr-2" />
+											<span className="text-sm font-medium text-blue-600 truncate max-w-[200px]">
+												{file.name}
+											</span>
+										</div>
+										<p className="text-sm text-gray-500">
+											Taille: {(file.size / 1024 / 1024).toFixed(2)} MB
+										</p>
+									</>
+								) : (
+									<>
+										<h4 className="text-lg font-medium text-gray-800">
+											Glissez votre document ici
+										</h4>
+										<p className="text-sm text-gray-500">
+											ou cliquez pour sélectionner un fichier
+										</p>
+										<p className="text-xs text-gray-400 mt-1">
+											Formats acceptés: PDF, DOCX, DOC (Max: 10MB)
+										</p>
+									</>
+								)}
+							</div>
+							<input
+								id="file-upload"
+								type="file"
+								accept=".pdf,.docx,.doc"
+								className="hidden"
+								onChange={handleInputChange}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<h5 className="font-medium text-gray-800">Recommandations:</h5>
+							<ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+								<li>
+									Assurez-vous que votre document contient tous les détails du
+									poste
+								</li>
+								<li>
+									Incluez les qualifications requises et les responsabilités
+								</li>
+								<li>Précisez les modalités de candidature</li>
+								<li>
+									Pour une meilleure visibilité, utilisez notre formulaire en
+									ligne
+								</li>
+							</ul>
+						</div>
+
+						<div className="flex flex-col xs:flex-row gap-3 justify-end pt-4 border-t border-gray-100">
+							<button
+								type="button"
+								onClick={onClose}
+								className="w-full xs:w-auto px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all touch-manipulation text-sm sm:text-base"
+							>
+								Annuler
+							</button>
+							<button
+								type="submit"
+								disabled={!file}
+								className={`w-full xs:w-auto px-6 py-2.5 rounded-xl ${
+									file
+										? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700"
+										: "bg-gray-300 text-gray-500 cursor-not-allowed"
+								} transition-colors shadow-md touch-manipulation`}
+							>
+								Publier l&apos;offre
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// Ajout de la validation des props
+UploadRecruitmentDocModal.propTypes = {
+	isOpen: PropTypes.bool.isRequired,
+	onClose: PropTypes.func.isRequired,
+};
+
+// Composant principal PostJob
+const PostJob = () => {
+	const navigate = useNavigate();
+	const { session } = useAuth();
+	const [activeTab, setActiveTab] = useState("particular");
+	const [searchQuery, setSearchQuery] = useState("");
+	const [sortBy, setSortBy] = useState("name");
+	const [filterStatus, setFilterStatus] = useState("all");
+
+	const [showProfileModal, setShowProfileModal] = useState(false);
+	const [showCreateCompanyModal, setShowCreateCompanyModal] = useState(false);
+	const [showEditCompanyModal, setShowEditCompanyModal] = useState(false);
+	const [showEditParticularModal, setShowEditParticularModal] = useState(false);
+	const [showJobFormModal, setShowJobFormModal] = useState(false);
+	const [showUploadDocModal, setShowUploadDocModal] = useState(false);
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+
+	const [selectedProfile, setSelectedProfile] = useState(null);
+	const [itemToDelete, setItemToDelete] = useState(null);
+
+	const [particuliers, setParticuliers] = useState([]);
+	const [entreprises, setEntreprises] = useState([]);
+
+	useEffect(() => {
+		const fetchParticuliers = async () => {
+			try {
+				const response = await fetch(API_URLS.RECRUITER_DATA(session?.id));
+				const data = await response.json();
+				if (data) {
+					// Ajouter le type "particulier" aux données renvoyées
+					data.type = "particulier";
+					setParticuliers([data]);
+					console.log("Données du particulier:", data);
+				}
+			} catch (error) {
+				setParticuliers([]);
+			}
+		};
+		
+
+		const fetchEntreprises = async () => {
+			try {
+				const response = await fetch(API_URLS.API_URL_GET_ENTREPRISES(session?.id));
+				const data = await response.json();
+				if (data && Array.isArray(data) && data.length > 0) {
+					setEntreprises(data);
+				} else { 
+					setEntreprises([]);
+				}
+			} catch (error) {
+				setEntreprises([]);
+			}
+		};
+
+		if (session?.id) {
+			fetchParticuliers();
+			fetchEntreprises();
+		}
+	}, [session?.id]);
+
+	const particulars = [
+		{
+			id: 1,
+			image:
+				"https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
+			name: "John Doe",
+			email: "john@example.com",
+			phone: "+229 97000000",
+			followers: 120,
+			status: "active",
+			lastActive: "2024-02-13",
+			domain: "Développement Web",
+			summary: "Développeur Full Stack avec 5 ans d'expérience",
+		}
+	
+	];
+
+	const companies = [
+		{
+			id: 1,
+			image:
+				"https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=150&h=150&fit=crop",
+			name: "TechCorp",
+			email: "contact@techcorp.com",
+			phone: "+229 97111111",
+			followers: 500,
+			status: "active",
+			lastActive: "2024-02-13",
+			address: "Cotonou, Bénin",
+			summary:
+				"Leader dans le développement de solutions technologiques innovantes",
+		},
+		{
+			id: 2,
+			image:
+				"https://images.unsplash.com/photo-1549924231-f129b911e442?w=150&h=150&fit=crop",
+			name: "InnoSoft",
+			email: "contact@innosoft.com",
+			phone: "+229 97111112",
+			followers: 350,
+			status: "inactive",
+			lastActive: "2024-02-11",
+			address: "Porto-Novo, Bénin",
+			summary:
+				"Entreprise spécialisée dans le développement de logiciels sur mesure",
+		},
+	];
+
+	const filteredAccounts = (
+		activeTab === "particular" ? particuliers : entreprises
+	)
+		.filter((account) => {
+			if (!account || !account.nom || !account.email) return false;
+			
+			const matchesSearch =
+				account.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				account.email.toLowerCase().includes(searchQuery.toLowerCase());
+			
+			const matchesStatus =
+				filterStatus === "all" || account.status === filterStatus;
+			
+			return matchesSearch && matchesStatus;
+		})
+		.sort((a, b) => {
+			if (!a.nom || !b.nom) return 0;
+			if (sortBy === "name") return a.nom.localeCompare(b.nom);
+			if (sortBy === "followers") return (b.followers || 0) - (a.followers || 0);
+			if (sortBy === "lastActive") {
+				if (!a.lastActive || !b.lastActive) return 0;
+				return new Date(b.lastActive) - new Date(a.lastActive);
+			}
+			return 0;
+		});
+
+	const handleProfileClick = (profile) => {
+		setSelectedProfile(profile);
+		setShowProfileModal(true);
+	};
+
+	const handleEditProfile = (profile) => {
+		setSelectedProfile(profile);
+		if (activeTab === "company") {
+			setShowEditCompanyModal(true);
+		} else {
+			setShowEditParticularModal(true);
+		}
+	};
+
+	const handleDeleteClick = (account) => {
+		// Ne permettre la suppression que pour les entreprises
+		if (account.type === "particulier") {
+			Swal.fire({
+				title: 'Action non autorisée',
+				text: 'La suppression des comptes particuliers n\'est pas autorisée.',
+				icon: 'warning',
+				confirmButtonText: 'OK'
+			});
+			return;
+		}
+		setItemToDelete(account);
+		setShowDeleteModal(true);
+	};
+
+	const handleConfirmDelete = async () => {
+		if (!itemToDelete || itemToDelete.type === "particulier") {
+		setShowDeleteModal(false);
+		setItemToDelete(null);
+			return;
+		}
+
+		try {
+			// Créer le FormData pour l'API
+			const formData = new FormData();
+			formData.append('id', itemToDelete.id);
+
+			// Appel API pour supprimer l'entreprise
+			const response = await fetch(API_URLS.API_URL_DELETE_ENTREPRISE(), {
+				method: 'POST',
+				body: formData
+			});
+
+			const data = await response.json();
+
+			if (data.success) {
+				Swal.fire({
+					title: 'Entreprise supprimée',
+					text: `L'entreprise "${itemToDelete.nom}" a été supprimée avec succès`,
+					icon: 'success',
+					confirmButtonText: 'OK'
+				});
+				
+				// Recharger la liste des entreprises
+				fetchEntreprises();
+			} else {
+				Swal.fire({
+					title: 'Erreur',
+					text: data.message || 'Une erreur est survenue lors de la suppression',
+					icon: 'error',
+					confirmButtonText: 'OK'
+				});
+			}
+		} catch (error) {
+			Swal.fire({
+				title: 'Erreur',
+				text: 'Une erreur de connexion est survenue',
+				icon: 'error',
+				confirmButtonText: 'OK'
+			});
+		} finally {
+			setShowDeleteModal(false);
+			setItemToDelete(null);
+		}
+	};
+
+	const handleOpenJobFormModal = (profile = null) => {
+		if (profile) {
+			setSelectedProfile(profile);
+		} else if (activeTab === "particular") {
+			// Si on est sur l'onglet particulier et qu'aucun profil n'est fourni, utiliser le particulier par défaut
+			setSelectedProfile(particulars[0]);
+		} else {
+			setSelectedProfile(null);
+		}
+		setShowJobFormModal(true);
+	};
+
+	const handleDeleteAccount = useCallback(async (accountId) => {
+		try {
+			// Confirm with sweet alert first
+			const result = await Swal.fire({
+				title: 'Êtes-vous sûr?',
+				text: "Cette action est irréversible. Toutes vos offres d'emploi et données liées à votre compte seront définitivement supprimées.",
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#d33',
+				cancelButtonColor: '#3085d6',
+				confirmButtonText: 'Oui, supprimer mon compte',
+				cancelButtonText: 'Annuler'
+			});
+
+			if (result.isConfirmed) {
+				const formData = new FormData();
+				formData.append('id', accountId || session.id);
+				formData.append('compte', session.type_compte);
+				
+				const response = await fetch(API_URLS.API_URL_DELETE_ACCOUNT_ENTREPRISE(), {
+					method: "POST",
+					body: formData
+				});
+				
+				const data = await response.text();
+				
+				if(data === "success"){
+					// Show success message
+					Swal.fire({
+						title: 'Compte supprimé!',
+						text: 'Votre compte a été supprimé avec succès.',
+						icon: 'success',
+						confirmButtonText: 'OK'
+					}).then(() => {
+						// Redirect to home page and log out
+						window.location.href = '/logout';
+					});
+				} else {
+					// Show error message
+					Swal.fire({
+						title: 'Erreur!',
+						text: 'Une erreur est survenue lors de la suppression de votre compte.',
+						icon: 'error',
+						confirmButtonText: 'OK'
+					});
+				}
+			}
+		} catch (error) {
+			console.error("Erreur lors de la suppression du compte:", error);
+			
+			// Show error message
+			Swal.fire({
+				title: 'Erreur!',
+				text: 'Une erreur est survenue lors de la suppression de votre compte.',
+				icon: 'error',
+				confirmButtonText: 'OK'
+			});
+		}
+	}, [session]);
+
+	return (
+		<div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+			{/* Header plus adaptatif */}
+			<div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white py-8 sm:py-16">
+				<div className="absolute inset-0 bg-grid-white/15 [mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]"></div>
+				<div className="absolute h-full w-full bg-gradient-to-b from-black/5 to-transparent"></div>
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+					<h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-center mb-3 sm:mb-4 animate-gradient">
+						Gestion des Comptes
+					</h1>
+					<p className="text-base sm:text-lg md:text-xl text-center text-white/90 max-w-2xl mx-auto">
+						Gérez vos comptes particuliers et entreprises avec facilité
+					</p>
+				</div>
+			</div>
+
+			{/* Container principal avec meilleur espacement */}
+			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-12 -mt-6 sm:-mt-8">
+				{/* Tabs plus compacts sur mobile */}
+				<div className="flex justify-center mb-6 sm:mb-12">
+					<div className="w-full sm:w-auto bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl shadow-lg p-1 inline-flex relative overflow-hidden border border-white/20">
+						<div
+							className={`absolute h-full w-1/2 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl transition-transform duration-500 transform ${
+								activeTab === "company" ? "translate-x-full" : ""
+							}`}
+							style={{
+								boxShadow: "0 0 20px rgba(37, 99, 235, 0.3)",
+							}}
+						/>
+						<button
+							onClick={() => setActiveTab("particular")}
+							className={`flex-1 py-3 px-6 rounded-xl text-sm font-medium transition-all duration-300 relative z-10 ${
+								activeTab === "particular"
+									? "text-white scale-105"
+									: "text-gray-600 hover:text-gray-900"
+							}`}
+						>
+							<div className="flex items-center justify-center space-x-2">
+								<Users className="w-4 h-4" />
+								<span>Comptes particuliers</span>
+							</div>
+						</button>
+						<button
+							onClick={() => setActiveTab("company")}
+							className={`flex-1 py-3 px-6 rounded-xl text-sm font-medium transition-all duration-300 relative z-10 ${
+								activeTab === "company"
+									? "text-white scale-105"
+									: "text-gray-600 hover:text-gray-900"
+							}`}
+						>
+							<div className="flex items-center justify-center space-x-2">
+								<Building className="w-4 h-4" />
+								<span>Comptes entreprises</span>
+							</div>
+						</button>
+					</div>
+				</div>
+
+				{/* Filtres réorganisés pour mobile */}
+				<div className="mb-6 sm:mb-8 space-y-4">
+					<div className="flex flex-col gap-4">
+						<div className="relative w-full">
+							<input
+								type="text"
+								placeholder="Rechercher un compte..."
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								className="w-full pl-12 pr-4 py-3 sm:py-3.5 rounded-xl border border-white/20 bg-white/80 backdrop-blur-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-lg hover:shadow-xl text-sm sm:text-base"
+							/>
+							<Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+						</div>
+
+						<div className="grid grid-cols-2 sm:flex gap-3 w-full">
+							{activeTab === "company" ? (
+								<>
+									<button
+										onClick={() => setShowCreateCompanyModal(true)}
+										className="col-span-1 inline-flex items-center justify-center px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all text-sm sm:text-base"
+									>
+										<Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+										<span className="hidden sm:inline">
+											Nouvelle entreprise
+										</span>
+										<span className="sm:hidden">Entreprise</span>
+									</button>
+									<div className="col-span-1 grid grid-cols-2 gap-2">
+										<button
+											onClick={() => handleOpenJobFormModal()}
+											className="inline-flex items-center justify-center px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all text-sm sm:text-base"
+										>
+											<Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+											<span className="hidden sm:inline">Nouvelle offre</span>
+											<span className="sm:hidden">Offre</span>
+										</button>
+										<button
+											onClick={() => setShowUploadDocModal(true)}
+											className="inline-flex items-center justify-center px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all text-sm sm:text-base"
+										>
+											<Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+											<span className="hidden sm:inline">Importer doc</span>
+											<span className="sm:hidden">Importer</span>
+										</button>
+									</div>
+									
+									<button
+										onClick={() => setShowDeleteAccountModal(true)}
+										className="col-span-2 mt-2 sm:mt-0 inline-flex items-center justify-center px-4 py-3 sm:py-3.5 rounded-xl text-white bg-red-600 hover:bg-red-700 transition-all text-sm sm:text-base"
+									>
+										<Trash2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+										<span>Supprimer mon compte</span>
+									</button>
+								</>
+							) : (
+								<div className="col-span-2 grid grid-cols-2 gap-3">
+									<button
+										onClick={() => handleOpenJobFormModal()}
+										className="inline-flex items-center justify-center px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all text-sm sm:text-base"
+									>
+										<Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+										<span>Nouvelle offre</span>
+									</button>
+									<button
+										onClick={() => setShowUploadDocModal(true)}
+										className="inline-flex items-center justify-center px-4 sm:px-6 py-3 sm:py-3.5 rounded-xl text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all text-sm sm:text-base"
+									>
+										<Upload className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+										<span>Importer document</span>
+									</button>
+								</div>
+							)}
+						</div>
+					</div>
+
+					{/* Filtres en ligne sur mobile */}
+					<div className="grid grid-cols-2 gap-4 w-full">
+						<select
+							value={sortBy}
+							onChange={(e) => setSortBy(e.target.value)}
+							className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-white/20 bg-white/80 backdrop-blur-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-lg text-sm sm:text-base"
+						>
+							<option value="name">Trier par nom</option>
+							<option value="followers">Par abonnés</option>
+							<option value="lastActive">Par activité</option>
+						</select>
+
+						<select
+							value={filterStatus}
+							onChange={(e) => setFilterStatus(e.target.value)}
+							className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-white/20 bg-white/80 backdrop-blur-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-lg text-sm sm:text-base"
+						>
+							<option value="all">Tous</option>
+							<option value="active">Actifs</option>
+							<option value="inactive">Inactifs</option>
+						</select>
+					</div>
+				</div>
+
+				{/* Liste des comptes adaptée */}
+				<div className="grid grid-cols-1 gap-4 sm:gap-6">
+					{filteredAccounts.length > 0 ? (
+						filteredAccounts.map((account) => (
+							<div
+								key={account.id}
+								className="group bg-white/80 backdrop-blur-lg rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 overflow-hidden border border-white/20"
+							>
+								<div className="p-4 sm:p-6">
+									<div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+										{/* Image et infos avec meilleur alignement */}
+										<div className="flex items-center gap-4 w-full">
+											<div className="relative w-16 h-16 sm:w-20 sm:h-20">
+												<div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl transform rotate-6 opacity-20 group-hover:rotate-12 transition-transform duration-300"></div>
+												<div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 border-white/50 hover:border-blue-500 transition-colors shadow-lg hover:shadow-xl relative z-10">
+													<img
+														src={account.type === "particulier" 
+															? (account.profil ? API_BASE_URL + account.profil : "https://via.placeholder.com/150") 
+															: (account.logo ? API_BASE_URL + account.logo : "https://via.placeholder.com/150")
+														}
+														alt={account.nom}
+														className="w-full h-full object-cover transform hover:scale-110 transition-transform duration-300"
+													/>
+												</div>
+											</div>
+											<div className="flex-1 min-w-0">
+												<h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+													{account.type === "particulier" 
+														? `${account.nom} ${account.prenom || ''}` 
+														: account.nom}
+												</h3>
+												<div className="flex flex-col text-gray-600 mt-1">
+													<span className="flex items-center">
+														<Mail className="w-4 h-4 mr-2 text-gray-400" />
+														{account.email}
+													</span>
+													<span className="flex items-center mt-1">
+														<Phone className="w-4 h-4 mr-2 text-gray-400" />
+														{account.contact}
+													</span>
+												</div>
+												<div className="flex items-center mt-2 space-x-4">
+													<span
+														className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+															account.decision === "validée"
+																? "bg-green-100 text-green-800 group-hover:bg-green-200"
+																: "bg-gray-100 text-gray-800 group-hover:bg-gray-200"
+														} transition-colors`}
+													>
+														{ (activeTab === "particular") ? ""  
+														: (account.decision === "validée" ? "Actif" : "Inactif") }
+													</span>
+													
+												</div>
+											</div>
+										</div>
+
+										{/* Actions en grille sur mobile */}
+										<div className="grid grid-cols-3 sm:flex gap-2 sm:gap-3 w-full sm:w-auto mt-4 sm:mt-0">
+											<button
+												onClick={() => handleProfileClick(account)}
+												className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all text-sm"
+											>
+												<Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+												<span className="hidden sm:inline ml-2">Voir</span>
+											</button>
+
+											{ account.type === "particulier" && (
+												<button
+												onClick={() => handleEditProfile(account)}
+												className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-green-50 text-green-600 hover:bg-green-100 transition-all text-sm"
+											>
+												<Edit2 className="w-4 h-4 sm:w-5 sm:h-5" />
+												<span className="hidden sm:inline ml-2">Modifier</span>
+											</button>
+											) }
+											
+											{ account.type === "entreprise" && (
+											<>
+											<button
+												onClick={() => handleDeleteClick(account)}
+												className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all text-sm"
+											>
+												<Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+												<span className="hidden sm:inline ml-2">Supprimer</span>
+											</button>
+											
+											<button
+												onClick={() => {
+													setItemToDelete(account);
+													setShowDeleteAccountModal(true);
+												}}
+												className="flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all text-sm"
+											>
+												<Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+												<span className="hidden sm:inline ml-2">Supprimer mon compte</span>
+											</button>
+											</>
+											) }
+										</div>
+									</div>
+								</div>
+							</div>
+						))
+					) : (
+						<div className="flex flex-col items-center justify-center py-12 px-4 bg-white/80 backdrop-blur-lg rounded-xl shadow-md">
+							<Users className="w-16 h-16 text-gray-300 mb-4" />
+							<h3 className="text-xl font-medium text-gray-900 mb-2">Aucun compte trouvé</h3>
+							<p className="text-gray-500 text-center">
+								{activeTab === "particular" 
+									? "Aucun compte particulier n'a été trouvé. Réessayez avec d'autres critères de recherche."
+									: "Aucune entreprise n'a été trouvée. Vous pouvez créer une nouvelle entreprise avec le bouton ci-dessus."
+								}
+							</p>
+							{activeTab === "company" && (
+								<button
+									onClick={() => setShowCreateCompanyModal(true)}
+									className="mt-6 px-6 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-md hover:shadow-lg transition-all"
+								>
+									<Plus className="w-4 h-4 inline-block mr-2" />
+									Créer une entreprise
+								</button>
+							)}
+						</div>
+					)}
+				</div>
+			</div>
+
+			{/* Les modales */}
+			<ProfileModal
+				isOpen={showProfileModal}
+				onClose={() => {
+					setShowProfileModal(false);
+					setSelectedProfile(null);
+				}}
+				profile={selectedProfile}
+				type={activeTab}
+				onEdit={handleEditProfile}
+				onDelete={handleDeleteClick}
+				onCreateJob={handleOpenJobFormModal}
+			/>
+
+			<CreateCompanyModal
+				isOpen={showCreateCompanyModal}
+				onClose={() => setShowCreateCompanyModal(false)}
+			/>
+
+			<EditCompanyModal
+				isOpen={showEditCompanyModal}
+				onClose={() => {
+					setShowEditCompanyModal(false);
+					setSelectedProfile(null);
+				}}
+				company={selectedProfile}
+			/>
+
+			<EditParticularModal
+				isOpen={showEditParticularModal}
+				onClose={() => {
+					setShowEditParticularModal(false);
+					setSelectedProfile(null);
+				}}
+				particular={selectedProfile}
+			/>
+
+			<JobFormModal
+				isOpen={showJobFormModal}
+				onClose={() => {
+					setShowJobFormModal(false);
+					setSelectedProfile(null);
+				}}
+				activeTab={activeTab}
+				particuliers={particuliers}
+				companies={companies}
+				selectedProfile={selectedProfile}
+				entreprises={entreprises}
+			/>
+
+			<UploadRecruitmentDocModal
+				isOpen={showUploadDocModal}
+				onClose={() => setShowUploadDocModal(false)}
+			/>
+
+			<DeleteConfirmationModal
+				isOpen={showDeleteModal}
+				onClose={() => {
+					setShowDeleteModal(false);
+					setItemToDelete(null);
+				}}
+				onConfirm={handleConfirmDelete}
+				itemName={itemToDelete?.name}
+			/>
+
+			{/* Modal de confirmation de suppression de compte */}
+			{showDeleteAccountModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+					<div className="w-full max-w-lg bg-white rounded-2xl shadow-xl transform transition-all">
+						<div className="p-6">
+							<div className="flex items-center justify-center mb-6">
+								<div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+									<AlertTriangle className="w-6 h-6 text-red-600" />
+								</div>
+							</div>
+							<h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
+								Confirmer la suppression de votre compte
+							</h3>
+							<p className="text-gray-600 text-center mb-6">
+								Êtes-vous sûr de vouloir supprimer définitivement votre compte ? Cette action est
+								irréversible et toutes vos données seront perdues.
+							</p>
+							<div className="flex flex-col sm:flex-row justify-center gap-3">
+								<button
+									type="button"
+									className="w-full sm:w-auto px-6 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+									onClick={() => setShowDeleteAccountModal(false)}
+								>
+									Annuler
+								</button>
+								<button
+									type="button"
+									className="w-full sm:w-auto px-6 py-2.5 text-sm font-medium text-white bg-red-600 rounded-xl hover:bg-red-700 transition-colors"
+									onClick={() => handleDeleteAccount(itemToDelete?.id)}
+								>
+									Supprimer mon compte
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
+			
+		</div>
+	);
+};
+
+export default PostJob;
+

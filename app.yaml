@@ -1,0 +1,20 @@
+runtime: nodejs18
+env: standard
+
+handlers:
+  # Handler pour les fichiers dans le dossier assets
+  - url: /assets
+    static_dir: dist/assets
+    secure: always
+
+  # Handler pour les images et fichiers statiques à la racine
+  - url: /(.*\.(png|svg))$
+    static_files: dist/\1
+    upload: dist/(.*\.(png|svg))$
+    secure: always
+
+  # Handler par défaut qui renvoie vers index.html
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html
+    secure: always
